@@ -1,0 +1,23 @@
+diff --git a/utils/string_helpers.py b/utils/string_helpers.py
+index 1122334..5566778 100644
+--- a/utils/string_helpers.py
++++ b/utils/string_helpers.py
+@@ -1,5 +1,8 @@
+-def slugify(text):
+-    return text.lower().replace(" ", "-")
++import re
++
++def slugify(text: str) -> str:
++    """Convert plain title into URL-safe slug."""
++    cleaned = re.sub(r'[^a-zA-Z0-9\s-]', '', text).strip()
++    return re.sub(r'[\s-]+', '-', cleaned).lower()
+diff --git a/tests/test_string_helpers.py b/tests/test_string_helpers.py
+index 0000000..9988776 100644
+--- a/tests/test_string_helpers.py
++++ b/tests/test_string_helpers.py
+@@ -0,0 +1,7 @@
++from utils.string_helpers import slugify
++
++def test_slugify_clean():
++    assert slugify("Hello World!") == "hello-world"
++    assert slugify("  Multiple   Spaces  ") == "multiple-spaces"

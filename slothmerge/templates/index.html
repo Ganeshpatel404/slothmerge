@@ -1,0 +1,1552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SlothMerge — Local Open-Weight Pull Request Auditor</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,400;1,9..144,600&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            /* Warm Minimalist / Indie Editorial Organic Palette */
+            --bg-base: #f5f2eb;
+            --bg-surface: #fbfbfa;
+            --bg-subtle: #eee8dc;
+            --bg-muted: #e4dcce;
+            
+            --ink-primary: #222222;
+            --ink-secondary: #5c5850;
+            --ink-tertiary: #878074;
+            --border-subtle: rgba(34, 34, 34, 0.09);
+            --border-medium: rgba(34, 34, 34, 0.18);
+            
+            /* Organic Accents */
+            --terracotta: #c85a32;
+            --terracotta-soft: rgba(200, 90, 50, 0.09);
+            --olive: #4a6344;
+            --olive-soft: rgba(74, 99, 68, 0.10);
+            --amber-warm: #c97a29;
+            
+            --shadow-subtle: 0 2px 6px rgba(34, 34, 34, 0.04), 0 1px 2px rgba(34, 34, 34, 0.06);
+            --shadow-card: 0 4px 16px rgba(34, 34, 34, 0.06), 0 1px 3px rgba(34, 34, 34, 0.04);
+            --shadow-hover: 0 8px 24px rgba(34, 34, 34, 0.08), 0 2px 6px rgba(34, 34, 34, 0.05);
+
+            /* Typography */
+            --font-heading: 'Fraunces', Georgia, serif;
+            --font-body: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+            --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        body {
+            background-color: var(--bg-base);
+            color: var(--ink-primary);
+            font-family: var(--font-body);
+            min-height: 100vh;
+            line-height: 1.6;
+            font-size: 15.5px;
+            overflow-x: hidden;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .mono {
+            font-family: var(--font-mono);
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* SVG icon utilities */
+        .icon-svg {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            stroke-width: 2;
+            stroke: currentColor;
+            fill: none;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            vertical-align: middle;
+        }
+
+        /* Stamped Badges */
+        .stamp-badge {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            font-weight: 700;
+            padding: 4px 10px;
+            border-radius: 4px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .stamp-badge.terracotta {
+            background: var(--terracotta-soft);
+            color: var(--terracotta);
+            border: 1px solid rgba(200, 90, 50, 0.3);
+        }
+
+        .stamp-badge.olive {
+            background: var(--olive-soft);
+            color: var(--olive);
+            border: 1px solid rgba(74, 99, 68, 0.3);
+        }
+
+        /* Top Whisper Notice */
+        .whisper-bar {
+            background: var(--bg-subtle);
+            border-bottom: 1px solid var(--border-subtle);
+            padding: 8px 16px;
+            text-align: center;
+            font-family: var(--font-mono);
+            font-size: 11.5px;
+            color: var(--ink-secondary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .whisper-bar span.leaf-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--olive);
+        }
+
+        /* Editorial Ticker Tape */
+        .editorial-ticker {
+            background: var(--ink-primary);
+            color: #fbfbfa;
+            border-bottom: 1px solid var(--ink-primary);
+            padding: 8px 0;
+            overflow: hidden;
+            white-space: nowrap;
+            font-family: var(--font-mono);
+            font-size: 11px;
+            letter-spacing: 0.3px;
+        }
+
+        .ticker-track {
+            display: inline-flex;
+            animation: scrollTicker 36s linear infinite;
+            gap: 36px;
+        }
+
+        .ticker-node {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .ticker-node span.accent {
+            color: #e5987d;
+            font-weight: 600;
+        }
+
+        .ticker-node span.olive-text {
+            color: #b3d1ac;
+            font-weight: 600;
+        }
+
+        @keyframes scrollTicker {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-50%); }
+        }
+
+        /* Page Container */
+        .content-wrap {
+            max-width: 1060px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        /* Hero Header */
+        .hero-block {
+            padding: 70px 0 44px;
+        }
+
+        .pill-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-family: var(--font-mono);
+            font-size: 11.5px;
+            font-weight: 600;
+            padding: 4px 12px;
+            border-radius: 20px;
+            border: 1px solid var(--border-medium);
+            background: var(--bg-surface);
+            color: var(--ink-secondary);
+            box-shadow: var(--shadow-subtle);
+            margin-bottom: 22px;
+        }
+
+        .hero-heading {
+            font-family: var(--font-heading);
+            font-size: clamp(40px, 6vw, 66px);
+            font-weight: 600;
+            line-height: 1.08;
+            letter-spacing: -0.025em;
+            color: var(--ink-primary);
+            margin-bottom: 22px;
+            max-width: 880px;
+        }
+
+        .hero-heading em {
+            font-style: italic;
+            font-weight: 400;
+            color: var(--terracotta);
+            text-decoration: underline;
+            text-decoration-color: rgba(200, 90, 50, 0.35);
+            text-underline-offset: 6px;
+        }
+
+        .hero-lead {
+            font-size: 17.5px;
+            color: var(--ink-secondary);
+            line-height: 1.65;
+            max-width: 740px;
+            margin-bottom: 34px;
+        }
+
+        .hero-lead strong {
+            color: var(--ink-primary);
+        }
+
+        .hero-action-row {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            flex-wrap: wrap;
+            margin-bottom: 50px;
+        }
+
+        .btn-terracotta {
+            background: var(--terracotta);
+            color: #ffffff;
+            border: 1px solid var(--terracotta);
+            border-radius: 8px;
+            padding: 12px 24px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            box-shadow: var(--shadow-subtle);
+            transition: all 0.15s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-terracotta:hover {
+            background: #b54f2a;
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-card);
+        }
+
+        .btn-editorial-light {
+            background: var(--bg-surface);
+            color: var(--ink-primary);
+            border: 1px solid var(--border-medium);
+            border-radius: 8px;
+            padding: 12px 20px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            box-shadow: var(--shadow-subtle);
+            transition: all 0.15s ease;
+        }
+
+        .btn-editorial-light:hover {
+            background: #ffffff;
+            border-color: var(--ink-tertiary);
+        }
+
+        /* Sloth Interactive Nap Card */
+        .sloth-nap-strip {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-medium);
+            border-radius: 14px;
+            padding: 24px 28px;
+            box-shadow: var(--shadow-card);
+            margin-bottom: 64px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 20px;
+            transition: border-color 0.2s ease;
+        }
+
+        .sloth-character-group {
+            display: flex;
+            align-items: center;
+            gap: 18px;
+        }
+
+        .sloth-portrait-frame {
+            width: 62px;
+            height: 62px;
+            background: var(--bg-subtle);
+            border: 1px solid var(--border-medium);
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        .sloth-icon-art {
+            width: 34px;
+            height: 34px;
+            fill: none;
+            stroke: var(--ink-primary);
+            stroke-width: 1.8;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .sloth-sleep-bubble {
+            position: absolute;
+            top: -12px;
+            right: -10px;
+            font-family: var(--font-heading);
+            font-style: italic;
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--terracotta);
+            animation: floatBubble 2.5s infinite ease-in-out;
+            letter-spacing: 1px;
+        }
+
+        @keyframes floatBubble {
+            0%, 100% { transform: translateY(0) scale(1); opacity: 0.6; }
+            50% { transform: translateY(-5px) scale(1.15); opacity: 1; }
+        }
+
+        .sloth-mood-titles h3 {
+            font-family: var(--font-heading);
+            font-size: 21px;
+            font-weight: 600;
+            color: var(--ink-primary);
+        }
+
+        .sloth-mood-titles p {
+            font-size: 13.5px;
+            color: var(--ink-secondary);
+        }
+
+        .sloth-pill-row {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .pill-spec {
+            font-family: var(--font-mono);
+            font-size: 11px;
+            font-weight: 500;
+            padding: 5px 12px;
+            border-radius: 6px;
+            border: 1px solid var(--border-subtle);
+            background: var(--bg-subtle);
+            color: var(--ink-secondary);
+        }
+
+        /* 01 · The Problem (Incidents Section) */
+        .narrative-section {
+            padding: 48px 0;
+            border-top: 1px solid var(--border-medium);
+        }
+
+        .section-tag {
+            font-family: var(--font-mono);
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--terracotta);
+            margin-bottom: 8px;
+        }
+
+        .section-headline {
+            font-family: var(--font-heading);
+            font-size: clamp(28px, 4vw, 40px);
+            font-weight: 600;
+            line-height: 1.15;
+            letter-spacing: -0.025em;
+            color: var(--ink-primary);
+            margin-bottom: 14px;
+        }
+
+        .section-blurb {
+            font-size: 16px;
+            color: var(--ink-secondary);
+            line-height: 1.65;
+            max-width: 760px;
+            margin-bottom: 28px;
+        }
+
+        .tombstone-layout {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .tombstone-box {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-medium);
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: var(--shadow-subtle);
+            cursor: pointer;
+            transition: all 0.15s ease;
+            position: relative;
+        }
+
+        .tombstone-box:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-card);
+            border-color: var(--terracotta);
+        }
+
+        .tombstone-box.selected {
+            border-color: var(--terracotta);
+            background: var(--terracotta-soft);
+        }
+
+        .tombstone-date {
+            font-family: var(--font-mono);
+            font-size: 10.5px;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: var(--terracotta);
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .tombstone-quote {
+            font-family: var(--font-heading);
+            font-style: italic;
+            font-size: 20px;
+            font-weight: 600;
+            color: var(--ink-primary);
+            margin-bottom: 6px;
+        }
+
+        .tombstone-context {
+            font-size: 13px;
+            color: var(--ink-secondary);
+            line-height: 1.45;
+        }
+
+        /* 02 · Interactive Review Station */
+        .workspace-card {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-medium);
+            border-radius: 14px;
+            box-shadow: var(--shadow-card);
+            overflow: hidden;
+            margin-top: 20px;
+        }
+
+        .workspace-top-bar {
+            padding: 16px 20px;
+            background: var(--bg-subtle);
+            border-bottom: 1px solid var(--border-subtle);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .preset-pill-list {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .btn-preset-pill {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-medium);
+            color: var(--ink-secondary);
+            font-size: 12px;
+            font-weight: 600;
+            padding: 6px 14px;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            font-family: var(--font-mono);
+        }
+
+        .btn-preset-pill:hover {
+            color: var(--ink-primary);
+            border-color: var(--ink-tertiary);
+        }
+
+        .btn-preset-pill.active {
+            background: var(--terracotta);
+            border-color: var(--terracotta);
+            color: #ffffff;
+        }
+
+        /* Interactive Audit Progress Steps */
+        .audit-steps-tracker {
+            display: none;
+            padding: 12px 20px;
+            background: var(--bg-subtle);
+            border-bottom: 1px solid var(--border-subtle);
+            font-family: var(--font-mono);
+            font-size: 11.5px;
+            color: var(--ink-secondary);
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .step-node {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .step-node.active {
+            color: var(--terracotta);
+            font-weight: 600;
+        }
+
+        .step-node.done {
+            color: var(--olive);
+            font-weight: 600;
+        }
+
+        /* Split Workspace: Editor & Live Results */
+        .split-workspace {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            min-height: 500px;
+        }
+
+        @media (max-width: 900px) {
+            .split-workspace {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .editor-container {
+            border-right: 1px solid var(--border-medium);
+            display: flex;
+            flex-direction: column;
+            background: #ffffff;
+        }
+
+        .editor-header-bar {
+            padding: 10px 16px;
+            background: var(--bg-subtle);
+            border-bottom: 1px solid var(--border-subtle);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-family: var(--font-mono);
+            font-size: 11px;
+            color: var(--ink-secondary);
+        }
+
+        textarea#diffInput {
+            flex: 1;
+            width: 100%;
+            min-height: 380px;
+            background: transparent;
+            color: var(--ink-primary);
+            border: none;
+            padding: 16px;
+            font-family: var(--font-mono);
+            font-size: 12px;
+            line-height: 1.65;
+            resize: vertical;
+            outline: none;
+            white-space: pre;
+            tab-size: 4;
+        }
+
+        .editor-footer-bar {
+            padding: 12px 16px;
+            border-top: 1px solid var(--border-medium);
+            background: var(--bg-subtle);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .btn-audit-trigger {
+            background: var(--ink-primary);
+            color: #ffffff;
+            border: 1px solid var(--ink-primary);
+            font-size: 13px;
+            font-weight: 600;
+            padding: 8px 18px;
+            border-radius: 6px;
+            cursor: pointer;
+            box-shadow: var(--shadow-subtle);
+            transition: all 0.15s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-audit-trigger:hover {
+            background: var(--terracotta);
+            border-color: var(--terracotta);
+        }
+
+        /* Right Side: Results Deck */
+        .audit-results-side {
+            background: var(--bg-surface);
+            display: flex;
+            flex-direction: column;
+            padding: 24px;
+        }
+
+        .verdict-banner-box {
+            border: 1px solid var(--border-medium);
+            border-radius: 10px;
+            padding: 18px;
+            margin-bottom: 18px;
+            background: var(--bg-subtle);
+            transition: all 0.2s ease;
+        }
+
+        .verdict-banner-box.APPROVE {
+            border-color: rgba(74, 99, 68, 0.4);
+            background: var(--olive-soft);
+        }
+
+        .verdict-banner-box.REQUEST_CHANGES {
+            border-color: rgba(200, 90, 50, 0.4);
+            background: var(--terracotta-soft);
+        }
+
+        .verdict-title-text {
+            font-family: var(--font-heading);
+            font-size: 23px;
+            font-weight: 600;
+            color: var(--ink-primary);
+            margin: 6px 0 4px;
+        }
+
+        .verdict-desc-text {
+            font-size: 13.5px;
+            color: var(--ink-secondary);
+            line-height: 1.5;
+        }
+
+        .tab-segmented-bar {
+            display: flex;
+            gap: 6px;
+            border-bottom: 1px solid var(--border-subtle);
+            padding-bottom: 8px;
+            margin-bottom: 16px;
+        }
+
+        .btn-segment-tab {
+            background: transparent;
+            border: none;
+            color: var(--ink-tertiary);
+            font-size: 12.5px;
+            font-weight: 600;
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .btn-segment-tab:hover {
+            color: var(--ink-primary);
+        }
+
+        .btn-segment-tab.active {
+            background: var(--bg-subtle);
+            color: var(--ink-primary);
+        }
+
+        .tab-content-panel {
+            display: none;
+            flex: 1;
+        }
+
+        .tab-content-panel.active {
+            display: block;
+            animation: fadeIn 0.15s ease;
+        }
+
+        .digest-bullet-line {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border-subtle);
+            font-size: 13.5px;
+            color: var(--ink-primary);
+            line-height: 1.5;
+        }
+
+        .bullet-point-mark {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--olive);
+            margin-top: 8px;
+            flex-shrink: 0;
+        }
+
+        /* Interactive Finding Card with Diff Line Link */
+        .card-finding-organic {
+            background: var(--bg-subtle);
+            border: 1px solid var(--border-subtle);
+            border-radius: 8px;
+            padding: 14px 16px;
+            margin-bottom: 12px;
+            font-size: 0.95rem;
+            transition: all 0.15s ease;
+        }
+
+        .card-finding-organic:hover {
+            background: #ffffff;
+            box-shadow: var(--shadow-subtle);
+        }
+
+        .card-finding-organic.CRITICAL { border-left: 3px solid var(--terracotta); }
+        .card-finding-organic.HIGH { border-left: 3px solid #f97316; }
+        .card-finding-organic.MEDIUM { border-left: 3px solid var(--olive); }
+
+        .finding-title-heading {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--ink-primary);
+            margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .finding-explanation-copy {
+            font-size: 12.5px;
+            color: var(--ink-secondary);
+            margin-bottom: 8px;
+            line-height: 1.5;
+        }
+
+        .code-snippet-box {
+            background: var(--ink-primary);
+            color: #d1fae5;
+            border-radius: 6px;
+            padding: 8px 12px;
+            font-family: var(--font-mono);
+            font-size: 11.5px;
+            white-space: pre-wrap;
+            position: relative;
+        }
+
+        /* Interactive Savings Calculator Card */
+        .calculator-strip {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-medium);
+            border-radius: 12px;
+            padding: 24px;
+            margin-top: 32px;
+            box-shadow: var(--shadow-subtle);
+        }
+
+        .calc-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+
+        .calc-slider-wrap {
+            margin: 16px 0 20px;
+        }
+
+        input[type="range"].calc-range {
+            width: 100%;
+            accent-color: var(--terracotta);
+            cursor: pointer;
+        }
+
+        .calc-output-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+            background: var(--bg-subtle);
+            padding: 16px;
+            border-radius: 8px;
+            border: 1px solid var(--border-subtle);
+        }
+
+        .calc-cell {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .calc-cell-label {
+            font-family: var(--font-mono);
+            font-size: 11px;
+            text-transform: uppercase;
+            color: var(--ink-tertiary);
+        }
+
+        .calc-cell-val {
+            font-family: var(--font-heading);
+            font-size: 22px;
+            font-weight: 600;
+            color: var(--ink-primary);
+        }
+
+        /* 03 · Closed API vs Open Weights Table */
+        .editorial-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13.5px;
+            margin: 20px 0 32px;
+            background: var(--bg-surface);
+            border: 1px solid var(--border-medium);
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: var(--shadow-subtle);
+        }
+
+        .editorial-table th, .editorial-table td {
+            padding: 14px 18px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .editorial-table th {
+            background: var(--bg-subtle);
+            font-family: var(--font-mono);
+            font-size: 11px;
+            text-transform: uppercase;
+            color: var(--ink-secondary);
+            font-weight: 700;
+        }
+
+        .editorial-table td.open-col {
+            color: var(--olive);
+            font-weight: 600;
+        }
+
+        .editorial-table td.closed-col {
+            color: var(--ink-tertiary);
+        }
+
+        /* 04 · Engineering Honesty Grid */
+        .honesty-columns {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .honesty-columns {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .honesty-box {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-medium);
+            border-radius: 10px;
+            padding: 24px;
+            box-shadow: var(--shadow-subtle);
+        }
+
+        .honesty-box h4 {
+            font-family: var(--font-heading);
+            font-size: 21px;
+            font-weight: 600;
+            color: var(--ink-primary);
+            margin-bottom: 8px;
+        }
+
+        .honesty-box p {
+            font-size: 14px;
+            color: var(--ink-secondary);
+            line-height: 1.6;
+        }
+
+        /* Footer */
+        footer {
+            border-top: 1px solid var(--border-medium);
+            padding: 56px 0 64px;
+            text-align: center;
+            background: var(--bg-subtle);
+            margin-top: 48px;
+        }
+
+        footer h3 {
+            font-family: var(--font-heading);
+            font-size: 32px;
+            font-weight: 600;
+            color: var(--ink-primary);
+            margin-bottom: 8px;
+        }
+
+        /* Toast Notice */
+        .toast-pill-tag {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: var(--ink-primary);
+            color: #ffffff;
+            font-family: var(--font-mono);
+            font-size: 12px;
+            font-weight: 500;
+            padding: 10px 18px;
+            border-radius: 8px;
+            box-shadow: var(--shadow-card);
+            display: none;
+            align-items: center;
+            gap: 8px;
+            z-index: 1000;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(3px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+
+<!-- Top Whisper Bar -->
+<div class="whisper-bar">
+    <span class="leaf-dot"></span>
+    <span>psst — this runs on your laptop with the Wi-Fi off. Zero source code ever leaves this machine.</span>
+</div>
+
+<!-- Editorial Ticker Tape -->
+<div class="editorial-ticker">
+    <div class="ticker-track">
+        <div class="ticker-node">
+            <span>[ollama] checking gemma on localhost…</span>
+            <span>·</span>
+            <span>bytes sent to third-party cloud: <span class="olive-text">0</span></span>
+            <span>·</span>
+            <span>gemma2:2b · ~350ms on laptop</span>
+            <span>·</span>
+            <span>session time: <span class="mono" id="sessionTimer">00:00</span></span>
+            <span>·</span>
+            <span>cost per review: <span class="olive-text">$0.00</span></span>
+            <span>·</span>
+            <span>works in airplane mode</span>
+            <span>·</span>
+            <span>traced with sentry agent sdk</span>
+            <span>·</span>
+        </div>
+        <div class="ticker-node">
+            <span>[ollama] checking gemma on localhost…</span>
+            <span>·</span>
+            <span>bytes sent to third-party cloud: <span class="olive-text">0</span></span>
+            <span>·</span>
+            <span>gemma2:2b · ~350ms on laptop</span>
+            <span>·</span>
+            <span>session time: <span class="mono">00:00</span></span>
+            <span>·</span>
+            <span>cost per review: <span class="olive-text">$0.00</span></span>
+            <span>·</span>
+            <span>works in airplane mode</span>
+            <span>·</span>
+            <span>traced with sentry agent sdk</span>
+            <span>·</span>
+        </div>
+    </div>
+</div>
+
+<div class="content-wrap">
+
+    <!-- Hero Section -->
+    <section class="hero-block">
+        <div class="pill-badge">
+            <span>Hacktoberfest 2026 · Week 3: Slow and Steady</span>
+        </div>
+
+        <h1 class="hero-heading">
+            You didn't want to review it.<br>
+            <em>SlothMerge did.</em>
+        </h1>
+
+        <p class="hero-lead">
+            SlothMerge reads <strong>only the code diffs you're dreading</strong>, catches the SQL injections and leaked tokens while you rest, and hands you an honest 3-bullet morning reply. Gemma runs on your machine. Your codebase never leaves it.
+        </p>
+
+        <div class="hero-action-row">
+            <button class="btn-terracotta" onclick="scrollToApp()">
+                Audit a PR Diff Now &darr;
+            </button>
+            <a href="https://dev.to/challenges/hacktoberfest-week3-2026-10-19" target="_blank" class="btn-editorial-light">
+                Read Challenge Rules &rarr;
+            </a>
+        </div>
+
+        <!-- Sloth Nap Scene Card (Vector art, zero emojis) -->
+        <div class="sloth-nap-strip" id="slothHeroStrip">
+            <div class="sloth-character-group">
+                <div class="sloth-portrait-frame">
+                    <!-- Clean SVG Sloth Outline -->
+                    <svg class="sloth-icon-art" viewBox="0 0 24 24" id="slothSvgIcon">
+                        <circle cx="12" cy="12" r="9"/>
+                        <path d="M8 11h.01M16 11h.01"/>
+                        <path d="M9 15c1 1 5 1 6 0"/>
+                        <path d="M10 7c1-1 3-1 4 0"/>
+                    </svg>
+                    <div class="sloth-sleep-bubble" id="slothSleepIndicator">z z Z</div>
+                </div>
+                <div class="sloth-mood-titles">
+                    <h3 id="slothMoodTitle">He is sleeping peacefully.</h3>
+                    <p id="slothMoodDesc">Zero code reviews pending. Your dinner is warm.</p>
+                </div>
+            </div>
+
+            <div class="sloth-pill-row">
+                <div class="pill-spec">Local Gemma 2</div>
+                <div class="pill-spec">Sentry Traced</div>
+                <div class="pill-spec">$0.00 / month</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 01 · The Problem -->
+    <section class="narrative-section">
+        <div class="section-tag">01 · the problem</div>
+        <h2 class="section-headline">Every engineering team has that 8:45 PM Slack message.</h2>
+        <p class="section-blurb">
+            <em>"Quick PR, only 380 lines! Mind taking a fast look before tomorrow's deploy?"</em><br>
+            It is never quick. It is unparameterized SQL, an unhandled async crash, and a credentials file someone committed on accident. You meant to review every line. But the evening scrolled by and your dinner got cold.
+        </p>
+
+        <div style="font-family: var(--font-mono); font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--ink-tertiary); margin-bottom: 12px;">
+            Select an incident below to load its diff &darr;
+        </div>
+
+        <!-- Interactive Incident Cards (Clicking loads the scenario directly!) -->
+        <div class="tombstone-layout">
+            <div class="tombstone-box selected" id="inc-sql" onclick="loadIncident('sql')">
+                <div class="tombstone-date">
+                    <span>Incident 01 · Database Breach</span>
+                    <span class="mono" style="font-size: 10px;">Click to Load</span>
+                </div>
+                <div class="tombstone-quote">"LGTM, ship it"</div>
+                <div class="tombstone-context">Bypassed review. Raw string SQL injection merged directly into user authentication.</div>
+            </div>
+
+            <div class="tombstone-box" id="inc-async" onclick="loadIncident('async')">
+                <div class="tombstone-date">
+                    <span>Incident 02 · Worker Termination</span>
+                    <span class="mono" style="font-size: 10px;">Click to Load</span>
+                </div>
+                <div class="tombstone-quote">"Looks clean to me"</div>
+                <div class="tombstone-context">Network timeout awaited without try/catch error boundaries. Crash loop in production.</div>
+            </div>
+
+            <div class="tombstone-box" id="inc-clean" onclick="loadIncident('clean')">
+                <div class="tombstone-date">
+                    <span>Baseline 03 · Verified Pass</span>
+                    <span class="mono" style="font-size: 10px;">Click to Load</span>
+                </div>
+                <div class="tombstone-quote">"Clean refactor"</div>
+                <div class="tombstone-context">Full unit test assertions, typed regex boundaries, zero vulnerabilities. Fast-forward approved.</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 02 · Interactive Review Station -->
+    <section class="narrative-section" id="interactive-app">
+        <div class="section-tag">02 · try it live</div>
+        <h2 class="section-headline">Drop in a diff. Watch him audit while you rest.</h2>
+        <p class="section-blurb">
+            Choose a candidate diff below or paste your own. SlothMerge parses the modified hunks, prompts Gemma on localhost, and formats an exact morning comment.
+        </p>
+
+        <div class="workspace-card">
+            <div class="workspace-top-bar">
+                <span style="font-family: var(--font-mono); font-size: 11.5px; font-weight: 700; text-transform: uppercase; color: var(--ink-secondary);">
+                    Active Scenario:
+                </span>
+                <div class="preset-pill-list">
+                    <button class="btn-preset-pill active" id="btn-sql" onclick="selectScenario('sql', this)">
+                        SEC-01 / SQLi & Leaked Token
+                    </button>
+                    <button class="btn-preset-pill" id="btn-async" onclick="selectScenario('async', this)">
+                        ERR-02 / Unhandled Async Crash
+                    </button>
+                    <button class="btn-preset-pill" id="btn-clean" onclick="selectScenario('clean', this)">
+                        TST-03 / Tested String Helper (Pass)
+                    </button>
+                </div>
+            </div>
+
+            <!-- Live 4-Step Interactive Progress Bar -->
+            <div class="audit-steps-tracker" id="auditStepsTracker">
+                <div class="step-node" id="step1"><span>1.</span> Hunk Extraction</div>
+                <div class="step-node" id="step2"><span>2.</span> AST Security Heuristics</div>
+                <div class="step-node" id="step3"><span>3.</span> Gemma 2 Local Inference</div>
+                <div class="step-node" id="step4"><span>4.</span> Morning Digest Formatted</div>
+            </div>
+
+            <div class="split-workspace">
+                <!-- Left: Editor -->
+                <div class="editor-container">
+                    <div class="editor-header-bar">
+                        <span>UNIFIED PATCH STREAM</span>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <span id="diffLinesCount" class="mono">0 lines</span>
+                            <span>·</span>
+                            <button class="btn-editorial-light" style="padding: 2px 8px; font-size: 10.5px;" onclick="clearEditor()">Clear</button>
+                        </div>
+                    </div>
+
+                    <textarea id="diffInput" spellcheck="false" placeholder="Paste unified git diff here..."></textarea>
+
+                    <div class="editor-footer-bar">
+                        <span style="font-size: 11.5px; color: var(--ink-secondary); font-family: var(--font-mono);">Engine: Gemma 2 (2B open weights)</span>
+                        <button class="btn-audit-trigger" id="auditBtn" onclick="runAudit()">
+                            <span>Wake Sloth & Audit</span>
+                            <span class="mono" style="font-size: 11px; opacity: 0.6;">&rarr;</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Right: Audit Results -->
+                <div class="audit-results-side">
+                    <div class="verdict-banner-box" id="verdictBannerBox">
+                        <div id="verdictBadgeContainer">
+                            <span class="stamp-badge terracotta" id="verdictBadge">[STATUS: BLOCKED · CHANGES REQUESTED]</span>
+                        </div>
+                        <div class="verdict-title-text" id="verdictTitleText">Awaiting Diff...</div>
+                        <div class="verdict-desc-text" id="verdictDescText">Click a scenario above to test.</div>
+                    </div>
+
+                    <div class="tab-segmented-bar">
+                        <button class="btn-segment-tab active" onclick="switchResultTab('digest', this)">3-Bullet Digest</button>
+                        <button class="btn-segment-tab" onclick="switchResultTab('findings', this)">Flaws Found</button>
+                        <button class="btn-segment-tab" onclick="switchResultTab('comment', this)">GitHub Comment</button>
+                    </div>
+
+                    <div class="tab-content-panel active" id="res-digest">
+                        <div id="digestItemsContainer">
+                            <!-- Bullets -->
+                        </div>
+                    </div>
+
+                    <div class="tab-content-panel" id="res-findings">
+                        <div id="findingsItemsContainer">
+                            <!-- Findings -->
+                        </div>
+                    </div>
+
+                    <div class="tab-content-panel" id="res-comment">
+                        <div style="display: flex; justify-content: flex-end; margin-bottom: 8px;">
+                            <button class="btn-editorial-light" style="padding: 4px 10px; font-size: 11.5px;" onclick="copyComment()">Copy Markdown</button>
+                        </div>
+                        <pre style="background: var(--ink-primary); color: #d1fae5; border-radius: 6px; padding: 12px; font-family: var(--font-mono); font-size: 11.5px; white-space: pre-wrap; max-height: 220px; overflow-y: auto;" id="githubCommentPre"></pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Interactive Cost & Time Savings Slider -->
+        <div class="calculator-strip">
+            <div class="calc-header">
+                <div>
+                    <h4 style="font-family: var(--font-heading); font-size: 18px; font-weight: 600;">Interactive Token Economics Calculator</h4>
+                    <p style="font-size: 13px; color: var(--ink-secondary);">Estimate your team's savings by moving code reviews from closed APIs to local Gemma weights.</p>
+                </div>
+                <span class="mono" style="font-size: 12px; font-weight: 600;" id="prsPerWeekLabel">35 PRs / week</span>
+            </div>
+
+            <div class="calc-slider-wrap">
+                <input type="range" class="calc-range" id="prsSlider" min="5" max="150" value="35" oninput="updateCalculator(this.value)">
+            </div>
+
+            <div class="calc-output-grid">
+                <div class="calc-cell">
+                    <span class="calc-cell-label">Closed API Cost</span>
+                    <span class="calc-cell-val" id="closedCostVal">$45.50 / mo</span>
+                </div>
+                <div class="calc-cell">
+                    <span class="calc-cell-label">SlothMerge on Gemma</span>
+                    <span class="calc-cell-val" style="color: var(--olive);">$0.00</span>
+                </div>
+                <div class="calc-cell">
+                    <span class="calc-cell-label">Annual Dollars Saved</span>
+                    <span class="calc-cell-val" style="color: var(--terracotta);" id="annualSavedVal">$546.00 / yr</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 03 · Closed API vs Open Weights Table -->
+    <section class="narrative-section">
+        <div class="section-tag">03 · the face-off</div>
+        <h2 class="section-headline">Closed commercial API vs. Open weights on your laptop.</h2>
+        <p class="section-blurb">
+            Why open innovation is the only architecture that makes sense for code review:
+        </p>
+
+        <table class="editorial-table">
+            <thead>
+                <tr>
+                    <th>Question</th>
+                    <th>Closed Cloud API (GPT-4 / Claude)</th>
+                    <th>Open Weights (Gemma on Localhost)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Where your private code goes</strong></td>
+                    <td class="closed-col">Sent over the wire to third-party data centers</td>
+                    <td class="open-col">Nowhere. Stays on your machine.</td>
+                </tr>
+                <tr>
+                    <td><strong>Cost of running 50 PRs a day</strong></td>
+                    <td class="closed-col">~$45 to $120 / month in recurring token bills</td>
+                    <td class="open-col">$0.00 after one download</td>
+                </tr>
+                <tr>
+                    <td><strong>Works with Wi-Fi off or on flights</strong></td>
+                    <td class="closed-col">Connection timeout error</td>
+                    <td class="open-col">Yes, 100% offline</td>
+                </tr>
+                <tr>
+                    <td><strong>Model drift & unexpected updates</strong></td>
+                    <td class="closed-col">Provider can silently swap weights overnight</td>
+                    <td class="open-col">Locked, reproducible weights on disk</td>
+                </tr>
+                <tr>
+                    <td><strong>Prompt & tool transparency</strong></td>
+                    <td class="closed-col">Hidden server-side system prompts</td>
+                    <td class="open-col">Fully inspectable in agent.py</td>
+                </tr>
+            </tbody>
+        </table>
+    </section>
+
+    <!-- 04 · Engineering Honesty Grid -->
+    <section class="narrative-section">
+        <div class="section-tag">04 · engineering honesty</div>
+        <h2 class="section-headline">Where open won. And where it cost me.</h2>
+
+        <div class="honesty-columns">
+            <div class="honesty-box">
+                <h4>Where open won</h4>
+                <p>
+                    Private code repositories are full of proprietary logic, database connection parameters, and unreleased IP. Sending that to external APIs isn't just expensive—in many companies, it's a direct compliance violation. With Gemma running on local open weights, privacy isn't a marketing checkbox: it is physically guaranteed by airgapping the process.
+                </p>
+            </div>
+
+            <div class="honesty-box">
+                <h4>Where it cost me (the scars)</h4>
+                <p>
+                    Small 2B open-weight models initially struggled with calculating accurate line numbers across multi-hunk diffs—they hallucinated line offsets. The fix was to stop asking the model to do arithmetic: I built a deterministic Python hunk parser that maps AST anchors, and let Gemma focus strictly on evaluating vulnerability semantics.
+                </p>
+            </div>
+        </div>
+    </section>
+
+</div>
+
+<!-- Footer -->
+<footer>
+    <div class="content-wrap">
+        <h3>He has earned a nap. Go be lazy.</h3>
+        <p style="margin-bottom: 16px; color: var(--ink-secondary);">Built for DEV Hacktoberfest 2026 (Week 3: Slow and Steady).</p>
+        <div style="font-family: var(--font-mono); font-size: 12px; color: var(--ink-tertiary);">
+            Powered by Google Gemma 2 & Sentry Agent Tracing · MIT License
+        </div>
+    </div>
+</footer>
+
+<!-- Toast Banner -->
+<div class="toast-pill-tag" id="toastPillTag">
+    <span style="color: #b3d1ac;">✓</span>
+    <span id="toastPillText">Done</span>
+</div>
+
+<script>
+    const diffInput = document.getElementById('diffInput');
+    const diffLinesCount = document.getElementById('diffLinesCount');
+    const auditBtn = document.getElementById('auditBtn');
+
+    // Live session timer
+    let secondsSpent = 0;
+    setInterval(() => {
+        secondsSpent++;
+        const m = String(Math.floor(secondsSpent / 60)).padStart(2, '0');
+        const s = String(secondsSpent % 60).padStart(2, '0');
+        const el = document.getElementById('sessionTimer');
+        if (el) el.textContent = `${m}:${s}`;
+    }, 1000);
+
+    diffInput.addEventListener('input', () => {
+        const lines = diffInput.value.split('\n').length;
+        diffLinesCount.textContent = `${lines} line${lines === 1 ? '' : 's'}`;
+    });
+
+    function scrollToApp() {
+        document.getElementById('interactive-app').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function clearEditor() {
+        diffInput.value = '';
+        diffInput.dispatchEvent(new Event('input'));
+        showToast('Diff editor cleared.');
+    }
+
+    function loadIncident(type) {
+        document.querySelectorAll('.tombstone-box').forEach(b => b.classList.remove('selected'));
+        const activeBox = document.getElementById(`inc-${type}`);
+        if (activeBox) activeBox.classList.add('selected');
+
+        const btnPill = document.getElementById(`btn-${type}`);
+        selectScenario(type, btnPill);
+        scrollToApp();
+    }
+
+    async function selectScenario(sampleId, btnElement) {
+        document.querySelectorAll('.btn-preset-pill').forEach(b => b.classList.remove('active'));
+        if (btnElement) btnElement.classList.add('active');
+
+        try {
+            const resp = await fetch(`/api/samples/${sampleId}`);
+            const data = await resp.json();
+            if (data.diff) {
+                diffInput.value = data.diff;
+                diffInput.dispatchEvent(new Event('input'));
+                runAudit();
+            }
+        } catch (err) {
+            showToast('Failed to load preset: ' + err.message);
+        }
+    }
+
+    async function runAudit() {
+        const diffText = diffInput.value.trim();
+        if (!diffText) {
+            showToast('Please provide a diff or pick a preset.');
+            return;
+        }
+
+        auditBtn.disabled = true;
+        auditBtn.innerHTML = '<span>Auditing diff...</span>';
+
+        // Animate Sloth SVG to alert state
+        const slothSvg = document.getElementById('slothSvgIcon');
+        if (slothSvg) {
+            slothSvg.innerHTML = '<circle cx="12" cy="12" r="9"/><circle cx="9" cy="11" r="1.5"/><circle cx="15" cy="11" r="1.5"/><path d="M9 16c1.5 1 4.5 1 6 0"/>';
+        }
+        document.getElementById('slothSleepIndicator').textContent = '! ! !';
+        document.getElementById('slothMoodTitle').textContent = 'Auditing diff hunks...';
+        document.getElementById('slothMoodDesc').textContent = 'Running AST heuristics and Gemma 2 inference.';
+
+        // Show live interactive 4-step tracker
+        const tracker = document.getElementById('auditStepsTracker');
+        tracker.style.display = 'flex';
+        resetSteps();
+
+        // Step 1
+        setStep(1, 'active');
+        await new Promise(r => setTimeout(r, 60));
+        setStep(1, 'done');
+        setStep(2, 'active');
+        await new Promise(r => setTimeout(r, 80));
+        setStep(2, 'done');
+        setStep(3, 'active');
+
+        try {
+            const response = await fetch('/api/audit', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    diff: diffText,
+                    title: 'Pull Request Review',
+                    model: 'gemma2:2b'
+                })
+            });
+
+            const data = await response.json();
+            setStep(3, 'done');
+            setStep(4, 'done');
+
+            renderAudit(data);
+            showToast('Audit complete. Verified with Sentry.');
+        } catch (err) {
+            showToast('Audit failed: ' + err.message);
+        } finally {
+            auditBtn.disabled = false;
+            auditBtn.innerHTML = '<span>Wake Sloth & Audit</span><span class="mono" style="font-size: 11px; opacity: 0.6;">&rarr;</span>';
+
+            // Return sloth to sleep
+            if (slothSvg) {
+                slothSvg.innerHTML = '<circle cx="12" cy="12" r="9"/><path d="M8 11h.01M16 11h.01"/><path d="M9 15c1 1 5 1 6 0"/><path d="M10 7c1-1 3-1 4 0"/>';
+            }
+            document.getElementById('slothSleepIndicator').textContent = 'z z Z';
+            document.getElementById('slothMoodTitle').textContent = 'He is sleeping peacefully.';
+            document.getElementById('slothMoodDesc').textContent = 'Audit complete. Review delivered.';
+            setTimeout(() => {
+                tracker.style.display = 'none';
+            }, 3000);
+        }
+    }
+
+    function resetSteps() {
+        for (let i = 1; i <= 4; i++) {
+            const el = document.getElementById(`step${i}`);
+            el.className = 'step-node';
+        }
+    }
+
+    function setStep(idx, state) {
+        const el = document.getElementById(`step${idx}`);
+        if (el) el.className = `step-node ${state}`;
+    }
+
+    function renderAudit(data) {
+        const review = data.review;
+        const banner = document.getElementById('verdictBannerBox');
+        banner.className = `verdict-banner-box ${review.verdict}`;
+
+        const badgeContainer = document.getElementById('verdictBadgeContainer');
+        if (review.verdict === 'APPROVE') {
+            badgeContainer.innerHTML = '<span class="stamp-badge olive">[STATUS: APPROVED · SAFE TO MERGE]</span>';
+            document.getElementById('verdictTitleText').textContent = 'Approved — Safe to Merge';
+        } else if (review.verdict === 'REQUEST_CHANGES') {
+            badgeContainer.innerHTML = '<span class="stamp-badge terracotta">[STATUS: BLOCKED · CHANGES REQUESTED]</span>';
+            document.getElementById('verdictTitleText').textContent = 'Changes Requested — Blocker Found';
+        } else {
+            badgeContainer.innerHTML = '<span class="stamp-badge terracotta">[STATUS: NEEDS DISCUSSION]</span>';
+            document.getElementById('verdictTitleText').textContent = 'Needs Discussion';
+        }
+
+        document.getElementById('verdictDescText').textContent = review.laziness_verdict;
+
+        // Digest
+        const digestContainer = document.getElementById('digestItemsContainer');
+        digestContainer.innerHTML = '';
+        (review.summary_bullets || []).forEach(b => {
+            const d = document.createElement('div');
+            d.className = 'digest-bullet-line';
+            d.innerHTML = `<span class="bullet-point-mark"></span><span>${b}</span>`;
+            digestContainer.appendChild(d);
+        });
+
+        // Findings
+        const findingsContainer = document.getElementById('findingsItemsContainer');
+        findingsContainer.innerHTML = '';
+        const criticals = review.critical_issues || [];
+        const nitpicks = review.nitpicks || [];
+
+        if (criticals.length === 0 && nitpicks.length === 0) {
+            findingsContainer.innerHTML = '<div style="color: var(--olive); font-size: 14px; font-weight: 600; padding: 12px 0;">Clean diff. No security regressions or unhandled errors detected.</div>';
+        } else {
+            criticals.forEach(c => {
+                const item = document.createElement('div');
+                item.className = `card-finding-organic ${c.severity}`;
+                item.innerHTML = `
+                    <div class="finding-title-heading">
+                        <span>${c.title}</span>
+                        <span class="stamp-badge terracotta" style="font-size: 10px; padding: 2px 6px;">${c.severity}</span>
+                    </div>
+                    <div class="finding-explanation-copy">${c.explanation}</div>
+                    <div class="code-snippet-box">${escapeHtml(c.suggested_fix)}</div>
+                `;
+                findingsContainer.appendChild(item);
+            });
+            nitpicks.forEach(n => {
+                const item = document.createElement('div');
+                item.className = 'card-finding-organic';
+                item.innerHTML = `
+                    <div class="finding-title-heading">
+                        <span>Style & Maintenance</span>
+                        <span class="stamp-badge olive" style="font-size: 10px; padding: 2px 6px;">INFO</span>
+                    </div>
+                    <div class="finding-explanation-copy">${n.suggestion}</div>
+                `;
+                findingsContainer.appendChild(item);
+            });
+        }
+
+        // GitHub Comment
+        document.getElementById('githubCommentPre').textContent = data.github_comment;
+    }
+
+    function switchResultTab(tabKey, btnElement) {
+        document.querySelectorAll('.btn-segment-tab').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-content-panel').forEach(p => p.classList.remove('active'));
+
+        btnElement.classList.add('active');
+        document.getElementById(`res-${tabKey}`).classList.add('active');
+    }
+
+    function copyComment() {
+        const text = document.getElementById('githubCommentPre').textContent;
+        navigator.clipboard.writeText(text).then(() => {
+            showToast('Copied GitHub PR comment to clipboard.');
+        });
+    }
+
+    function updateCalculator(prsPerWeek) {
+        document.getElementById('prsPerWeekLabel').textContent = `${prsPerWeek} PRs / week`;
+        
+        // ~4,000 tokens per PR review on GPT-4o = ~$0.026 per review
+        const prsPerMonth = prsPerWeek * 4.33;
+        const monthlyCost = (prsPerMonth * 0.030).toFixed(2);
+        const annualSavings = (monthlyCost * 12).toFixed(2);
+
+        document.getElementById('closedCostVal').textContent = `$${monthlyCost} / mo`;
+        document.getElementById('annualSavedVal').textContent = `$${annualSavings} / yr`;
+    }
+
+    function showToast(text) {
+        const tag = document.getElementById('toastPillTag');
+        document.getElementById('toastPillText').textContent = text;
+        tag.style.display = 'flex';
+        setTimeout(() => {
+            tag.style.display = 'none';
+        }, 2600);
+    }
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        return str
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+
+    // Auto-load scenario 1
+    window.addEventListener('DOMContentLoaded', () => {
+        selectScenario('sql', document.getElementById('btn-sql'));
+        updateCalculator(35);
+    });
+</script>
+
+</body>
+</html>

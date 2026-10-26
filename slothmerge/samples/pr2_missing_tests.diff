@@ -1,0 +1,20 @@
+diff --git a/services/payment_gateway.py b/services/payment_gateway.py
+index a1b2c3d..e4f5a6b 100644
+--- a/services/payment_gateway.py
++++ b/services/payment_gateway.py
+@@ -25,12 +25,24 @@ class PaymentGateway:
+     def __init__(self, client):
+         self.client = client
+ 
+-    def process_charge(self, amount, currency):
+-        return self.client.post("/charges", json={"amount": amount})
++    async def process_charge_async(self, account_id: str, amount_cents: int, currency: str):
++        payload = {
++            "account_id": account_id,
++            "amount": amount_cents,
++            "currency": currency
++        }
++        print("DEBUG: processing payment for account " + account_id)
++        # Direct async call without network exception handling
++        response = await self.client.post("/v1/transactions", json=payload)
++        return response.json()
